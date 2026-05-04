@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPF Pro — Boas Práticas de Fabricação</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f0faf4;
+  --bg2:#ffffff;
+  --bg3:#f4f9f6;
+  --card:#ffffff;
+  --border:#d1e8da;
+  --accent:#00b854;
+  --accent2:#00934a;
+  --accentd:#007a3c;
+  --accentlt:#e6f9ee;
+  --warn:#f59e0b;
+  --danger:#ef4444;
+  --text:#0f2d1e;
+  --text2:#1e4d32;
+  --muted:#6b9e80;
+  --gold:#f59e0b;
+  --silver:#94a3b8;
+  --bronze:#cd7f32;
+  /* LEVEL COLORS */
+  --lvl1:#00b854;   /* verde  — 2500 pts  */
+  --lvl2:#3b82f6;   /* azul   — 5000 pts  */
+  --lvl3:#f97316;   /* laranja— 7000 pts  */
+  --lvl4:#a855f7;   /* roxo   — 9000 pts  */
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+.screen{display:none;min-height:100vh;}
+.screen.active{display:flex;}
+
+/* BG decorativo suave */
+.bg-deco{position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 55% 40% at 10% 80%,rgba(0,184,84,.07) 0%,transparent 70%),
+             radial-gradient(ellipse 40% 35% at 90% 10%,rgba(0,184,84,.05) 0%,transparent 70%);
+}
+
+/* ======= LOGIN ======= */
+#screen-login{flex-direction:column;align-items:center;justify-content:center;position:relative;}
+.login-container{position:relative;z-index:1;width:100%;max-width:480px;padding:24px;}
+.logo-area{text-align:center;margin-bottom:36px;}
+.logo-badge{display:inline-flex;align-items:center;gap:8px;background:var(--accentlt);border:1px solid rgba(0,184,84,.3);border-radius:50px;padding:6px 18px;margin-bottom:16px;}
+.logo-badge span{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;color:var(--accent);text-transform:uppercase;}
+.logo-title{font-family:'Syne',sans-serif;font-size:48px;font-weight:800;line-height:1;margin-bottom:8px;background:linear-gradient(135deg,var(--accent) 0%,var(--accentd) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo-sub{font-size:13px;color:var(--muted);letter-spacing:.5px;}
+
+.role-cards{display:flex;flex-direction:column;gap:12px;margin-bottom:28px;}
+.role-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:16px 20px;cursor:pointer;transition:all .25s;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(0,100,50,.06);}
+.role-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,100,50,.12);}
+.role-card.operator:hover{border-color:var(--accent);}
+.role-card.analyst:hover{border-color:#3b82f6;}
+.role-card.manager:hover{border-color:var(--gold);}
+.role-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.role-card.operator .role-icon{background:#e6f9ee;}
+.role-card.analyst .role-icon{background:#eff6ff;}
+.role-card.manager .role-icon{background:#fffbeb;}
+.role-info{flex:1;}
+.role-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:2px;}
+.role-desc{font-size:12px;color:var(--muted);}
+.role-arrow{font-size:20px;color:var(--muted);}
+
+/* ======= MODAL ======= */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,45,30,.4);backdrop-filter:blur(8px);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:28px;width:90%;max-width:440px;animation:modalIn .3s ease;box-shadow:0 20px 60px rgba(0,80,40,.15);}
+@keyframes modalIn{from{opacity:0;transform:scale(.92) translateY(16px)}to{opacity:1;transform:none}}
+.modal-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.modal-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+
+/* AVATAR */
+.avatar-upload-wrap{display:flex;flex-direction:column;align-items:center;gap:9px;margin-bottom:16px;padding:14px;border:2px dashed var(--border);border-radius:13px;cursor:pointer;transition:border-color .2s;position:relative;background:var(--bg3);}
+.avatar-upload-wrap:hover{border-color:var(--accent);}
+.avatar-upload-wrap input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.avatar-preview-img{width:68px;height:68px;border-radius:50%;object-fit:cover;border:2.5px solid var(--accent);display:none;}
+.avatar-ph{width:68px;height:68px;border-radius:50%;background:#e6f9ee;display:flex;align-items:center;justify-content:center;font-size:26px;border:2px dashed var(--border);}
+.avatar-hint{font-size:12px;color:var(--muted);text-align:center;}
+.avatar-hint strong{color:var(--accent);}
+.badge-opt{font-size:10px;color:var(--muted);background:var(--bg3);padding:2px 8px;border-radius:10px;border:1px solid var(--border);}
+
+/* FORMS */
+.form-group{margin-bottom:13px;}
+.form-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block;}
+.form-input{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;transition:border-color .2s;outline:none;}
+.form-input:focus{border-color:var(--accent);}
+.form-input::placeholder{color:var(--muted);}
+.select-input{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;cursor:pointer;transition:border-color .2s;margin-bottom:13px;}
+.select-input:focus{border-color:var(--accent);}
+
+/* BUTTONS */
+.btn{width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;transition:all .2s;letter-spacing:.3px;}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accentd));color:#fff;}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,184,84,.35);}
+.btn-blue{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;}
+.btn-blue:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,.3);}
+.btn-gold{background:linear-gradient(135deg,var(--gold),#d97706);color:#fff;}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(245,158,11,.3);}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--muted);margin-top:10px;}
+.btn-outline:hover{border-color:var(--muted);color:var(--text);}
+.btn-danger{background:linear-gradient(135deg,var(--danger),#b91c1c);color:#fff;}
+.btn-sm{width:auto;padding:7px 14px;font-size:12px;}
+.error-msg{color:var(--danger);font-size:12px;margin-top:7px;display:none;}
+
+/* ======= TOPBAR ======= */
+#screen-app{flex-direction:column;}
+.topbar{background:#fff;border-bottom:1.5px solid var(--border);padding:0 22px;height:62px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,80,40,.07);}
+.topbar-left{display:flex;align-items:center;gap:11px;}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent);}
+.topbar-sep{width:1px;height:22px;background:var(--border);}
+.topbar-user{font-size:13px;color:var(--muted);}
+.topbar-user strong{color:var(--text);}
+.topbar-av-img{width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);display:none;}
+.topbar-av-ph{width:34px;height:34px;border-radius:50%;background:var(--accentlt);display:flex;align-items:center;justify-content:center;font-size:14px;border:1.5px solid var(--border);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.badge-role{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;}
+.badge-operator{background:#e6f9ee;color:var(--accent);border:1px solid rgba(0,184,84,.3);}
+.badge-analyst{background:#eff6ff;color:#3b82f6;border:1px solid rgba(59,130,246,.3);}
+.badge-manager{background:#fffbeb;color:var(--gold);border:1px solid rgba(245,158,11,.3);}
+.btn-logout{background:var(--bg3);border:1.5px solid var(--border);color:var(--muted);padding:5px 13px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.btn-logout:hover{border-color:var(--danger);color:var(--danger);}
+
+/* ======= LAYOUT ======= */
+.app-body{display:flex;flex:1;min-height:calc(100vh - 62px);}
+.sidebar{width:228px;background:#fff;border-right:1.5px solid var(--border);padding:18px 10px;flex-shrink:0;}
+.nav-section{margin-bottom:22px;}
+.nav-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;padding:0 10px;margin-bottom:7px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;transition:all .2s;font-size:13px;color:var(--muted);margin-bottom:2px;border:1.5px solid transparent;}
+.nav-item:hover{background:var(--accentlt);color:var(--text);}
+.nav-item.active{background:var(--accentlt);color:var(--accent);border-color:rgba(0,184,84,.2);font-weight:600;}
+.nav-item .nav-icon{font-size:17px;width:22px;text-align:center;}
+.main-content{flex:1;padding:24px;overflow-y:auto;}
+
+/* ======= RANKING PANEL ======= */
+.ranking-panel{width:268px;background:#fff;border-left:1.5px solid var(--border);padding:18px 14px;flex-shrink:0;}
+.panel-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;color:var(--text);}
+.rank-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;margin-bottom:7px;background:var(--bg3);border:1.5px solid var(--border);transition:all .2s;}
+.rank-item:hover{border-color:var(--accent);}
+.rank-pos{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;width:22px;text-align:center;}
+.rank-pos.gold{color:var(--gold);}.rank-pos.silver{color:var(--silver);}.rank-pos.bronze{color:var(--bronze);}.rank-pos.other{color:var(--muted);}
+.rank-info{flex:1;}
+.rank-name{font-size:12px;font-weight:600;color:var(--text);}
+.rank-pts{font-size:11px;color:var(--accent);font-weight:600;}
+.rank-av{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--accent);flex-shrink:0;}
+.rank-av-ph{width:28px;height:28px;border-radius:50%;background:var(--accentlt);display:flex;align-items:center;justify-content:center;font-size:11px;border:1px solid var(--border);flex-shrink:0;color:var(--accent);font-weight:700;}
+
+/* ======= LEVEL BADGE ======= */
+.level-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor;}
+.lvl-green {color:var(--lvl1);background:var(--lvl1);}
+.lvl-blue  {color:var(--lvl2);background:var(--lvl2);}
+.lvl-orange{color:var(--lvl3);background:var(--lvl3);}
+.lvl-purple{color:var(--lvl4);background:var(--lvl4);}
+
+.level-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;font-family:'Syne',sans-serif;}
+.level-badge.lvl-green-bg {background:#e6f9ee;color:var(--lvl1);border:1.5px solid rgba(0,184,84,.3);}
+.level-badge.lvl-blue-bg  {background:#eff6ff;color:var(--lvl2);border:1.5px solid rgba(59,130,246,.3);}
+.level-badge.lvl-orange-bg{background:#fff7ed;color:var(--lvl3);border:1.5px solid rgba(249,115,22,.3);}
+.level-badge.lvl-purple-bg{background:#faf5ff;color:var(--lvl4);border:1.5px solid rgba(168,85,247,.3);}
+.level-badge.lvl-none-bg  {background:var(--bg3);color:var(--muted);border:1.5px solid var(--border);}
+
+/* ======= TABS ======= */
+.tab-view{display:none;}
+.tab-view.active{display:block;}
+.page-header{margin-bottom:22px;}
+.page-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:4px;color:var(--text);}
+.page-sub{font-size:13px;color:var(--muted);}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+
+/* ======= CARDS ======= */
+.card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,80,40,.05);}
+.card-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text2);}
+.card-value{font-family:'Syne',sans-serif;font-size:33px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accentd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.card-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+
+/* ======= SCORE WIDGET ======= */
+.score-widget{background:linear-gradient(135deg,#e6f9ee,#d0f5e3);border:1.5px solid rgba(0,184,84,.25);border-radius:16px;padding:22px;text-align:center;margin-bottom:18px;box-shadow:0 4px 16px rgba(0,184,84,.1);}
+.score-widget-label{font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;}
+.score-widget-pts{font-family:'Syne',sans-serif;font-size:44px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accentd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin-bottom:6px;}
+.score-widget-rank{font-size:12px;color:var(--muted);}
+.score-widget-rank strong{color:var(--gold);}
+.progress-bar-bg{background:rgba(0,0,0,.08);border-radius:20px;height:8px;overflow:hidden;margin-top:10px;}
+.progress-bar-fill{height:100%;border-radius:20px;background:linear-gradient(90deg,var(--accent),var(--accentd));transition:width .6s ease;}
+
+/* LEVEL CELEBRATION BANNER */
+.level-banner{border-radius:14px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;gap:14px;animation:bannerIn .5s ease;}
+@keyframes bannerIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.level-banner.green {background:#e6f9ee;border:1.5px solid rgba(0,184,84,.3);}
+.level-banner.blue  {background:#eff6ff;border:1.5px solid rgba(59,130,246,.3);}
+.level-banner.orange{background:#fff7ed;border:1.5px solid rgba(249,115,22,.3);}
+.level-banner.purple{background:#faf5ff;border:1.5px solid rgba(168,85,247,.3);}
+.level-banner-icon{font-size:32px;flex-shrink:0;}
+.level-banner-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;margin-bottom:3px;}
+.level-banner-msg{font-size:12px;color:var(--muted);line-height:1.5;}
+
+/* ======= POST COMPOSE ======= */
+.post-compose{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:22px;margin-bottom:22px;box-shadow:0 2px 8px rgba(0,80,40,.05);}
+.post-compose-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:14px;color:var(--text);}
+
+/* MULTI-SELECT ACTIVITY CHIPS */
+.activity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;margin-bottom:14px;}
+.activity-chip{background:var(--bg3);border:2px solid var(--border);border-radius:11px;padding:10px 13px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:space-between;gap:8px;user-select:none;}
+.activity-chip:hover{border-color:var(--accent);background:#e6f9ee;}
+.activity-chip.selected{border-color:var(--accent);background:#e6f9ee;box-shadow:0 0 0 3px rgba(0,184,84,.1);}
+.activity-chip.selected .chip-check{display:flex;}
+.chip-check{display:none;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-weight:700;}
+.activity-chip-left{display:flex;align-items:center;gap:8px;flex:1;}
+.activity-chip-icon{font-size:19px;}
+.activity-chip-name{font-size:12px;font-weight:600;color:var(--text2);}
+.activity-chip-pts{font-size:11px;font-weight:700;color:var(--accent);background:rgba(0,184,84,.1);padding:2px 7px;border-radius:20px;white-space:nowrap;}
+
+/* POINTS PREVIEW BAR */
+.pts-preview{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#e6f9ee,#d0f5e3);border:1.5px solid rgba(0,184,84,.2);border-radius:11px;padding:12px 16px;margin-bottom:14px;}
+.pts-preview-label{font-size:12px;color:var(--muted);flex:1;}
+.pts-preview-total{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--accent);}
+.pts-preview-note{font-size:11px;color:var(--muted);}
+
+.image-upload-area{border:2px dashed var(--border);border-radius:11px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;position:relative;overflow:hidden;background:var(--bg3);}
+.image-upload-area:hover{border-color:var(--accent);background:#e6f9ee;}
+.image-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.upload-icon{font-size:26px;margin-bottom:6px;}
+.upload-text{font-size:13px;color:var(--muted);}
+.upload-text strong{color:var(--accent);}
+.image-previews{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;}
+.image-preview{position:relative;width:76px;height:76px;border-radius:9px;overflow:hidden;border:1.5px solid var(--border);}
+.image-preview img{width:100%;height:100%;object-fit:cover;}
+.image-preview .remove-img{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);border-radius:50%;width:17px;height:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:#fff;border:none;}
+.text-area{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical;min-height:76px;outline:none;transition:border-color .2s;margin-bottom:14px;}
+.text-area:focus{border-color:var(--accent);}
+.text-area::placeholder{color:var(--muted);}
+
+/* ======= FEED ======= */
+.posts-feed{display:flex;flex-direction:column;gap:14px;}
+.post-item{background:#fff;border:1.5px solid var(--border);border-radius:15px;overflow:hidden;transition:all .2s;box-shadow:0 2px 8px rgba(0,80,40,.05);}
+.post-item:hover{border-color:var(--accent);box-shadow:0 4px 16px rgba(0,80,40,.1);}
+.post-header{padding:13px 16px;display:flex;align-items:center;gap:11px;border-bottom:1.5px solid var(--border);}
+.post-av-img{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;}
+.post-av-ph{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accentd));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
+.post-meta{flex:1;}
+.post-author{font-size:13px;font-weight:600;color:var(--text);}
+.post-time{font-size:11px;color:var(--muted);}
+.post-points{display:flex;align-items:center;gap:5px;background:#e6f9ee;border:1px solid rgba(0,184,84,.25);border-radius:20px;padding:3px 10px;}
+.post-points-num{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--accent);}
+.post-points-label{font-size:10px;color:var(--muted);}
+.post-priority{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;}
+.priority-high{background:#fef2f2;color:var(--danger);border:1px solid rgba(239,68,68,.25);}
+.priority-medium{background:#fffbeb;color:var(--warn);border:1px solid rgba(245,158,11,.25);}
+.priority-low{background:#e6f9ee;color:var(--accent);border:1px solid rgba(0,184,84,.25);}
+.post-body{padding:13px 16px;}
+.post-activity-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.post-activity-tag{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--text2);}
+.post-caption{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:10px;}
+.post-images{display:flex;gap:7px;flex-wrap:wrap;}
+.post-img{width:115px;height:85px;border-radius:8px;object-fit:cover;border:1.5px solid var(--border);cursor:pointer;transition:transform .2s;}
+.post-img:hover{transform:scale(1.04);}
+
+/* ======= TOAST ======= */
+.toast-container{position:fixed;bottom:22px;right:22px;z-index:9999;display:flex;flex-direction:column;gap:9px;pointer-events:none;}
+.toast{background:#fff;border:1.5px solid var(--border);border-radius:13px;padding:13px 16px;max-width:340px;animation:toastIn .4s ease,toastOut .4s ease 3.6s forwards;pointer-events:all;display:flex;align-items:flex-start;gap:11px;box-shadow:0 8px 24px rgba(0,80,40,.12);}
+.toast.success{border-color:rgba(0,184,84,.4);}
+.toast.warning{border-color:rgba(245,158,11,.4);}
+.toast.danger{border-color:rgba(239,68,68,.4);}
+.toast.level{border-color:rgba(59,130,246,.4);}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateX(30px)}}
+.toast-icon{font-size:22px;flex-shrink:0;}
+.toast-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:2px;color:var(--text);}
+.toast-msg{font-size:11px;color:var(--muted);line-height:1.5;}
+
+/* ======= REPUDIO ======= */
+.repudiation-wrapper{background:#fff;border:1.5px solid rgba(239,68,68,.25);border-radius:16px;padding:22px;margin-bottom:22px;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,80,40,.05);}
+.repudiation-wrapper::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--danger),#f97316);}
+.rep-paper{background:#fafaf8;border-radius:10px;border:1px solid #ddd;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12);}
+.rep-paper-inner{padding:30px 36px;background:repeating-linear-gradient(transparent,transparent 27px,rgba(0,150,80,.04) 27px,rgba(0,150,80,.04) 28px);}
+.rep-paper-header{text-align:center;padding-bottom:16px;margin-bottom:22px;border-bottom:2.5px solid #1a1a1a;}
+.rep-co-label{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;color:#888;text-transform:uppercase;margin-bottom:5px;}
+.rep-doc-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#b91c1c;margin-bottom:4px;}
+.rep-doc-date{font-size:12px;color:#666;}
+.rep-field-group{margin-bottom:16px;}
+.rep-field-label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:7px;display:block;}
+.rep-field-input,.rep-field-select,.rep-field-textarea{width:100%;background:transparent;border:none;border-bottom:1.5px solid #bbb;padding:7px 2px;font-family:'DM Sans',sans-serif;font-size:14px;color:#1a1a1a;outline:none;transition:border-color .2s;}
+.rep-field-input:focus,.rep-field-select:focus,.rep-field-textarea:focus{border-bottom-color:#b91c1c;}
+.rep-field-textarea{min-height:78px;resize:vertical;}
+.rep-field-select{cursor:pointer;}
+.rep-field-input[readonly]{color:#888;cursor:default;}
+.rep-actions{margin-top:20px;padding-top:16px;border-top:1px dashed #ccc;display:flex;gap:10px;flex-wrap:wrap;}
+.rep-btn{border:none;border-radius:9px;padding:10px 18px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.5px;}
+.rep-btn-submit{background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;}
+.rep-btn-submit:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(185,28,28,.3);}
+.rep-btn-print{background:#1a1a1a;color:#fff;}
+.rep-btn-print:hover{background:#333;}
+.rep-btn-save{background:#e6f9ee;color:var(--accent);border:1.5px solid rgba(0,184,84,.3);}
+.rep-btn-save:hover{background:#d0f5e3;}
+
+/* REP LIST */
+.rep-list{display:flex;flex-direction:column;gap:13px;}
+.rep-card{background:#fff;border:1.5px solid rgba(239,68,68,.2);border-radius:13px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 2px 6px rgba(0,80,40,.04);}
+.rep-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--danger);}
+.rep-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;}
+.rep-card-target{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--danger);}
+.rep-card-role{font-size:11px;color:var(--muted);margin-top:2px;}
+.rep-card-date{font-size:11px;color:var(--muted);}
+.rep-card-desc{font-size:12px;color:var(--text);line-height:1.6;margin-bottom:9px;}
+.rep-card-footer{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);flex-wrap:wrap;gap:6px;}
+.rep-count-badge{display:inline-flex;align-items:center;gap:4px;background:#fef2f2;border:1px solid rgba(239,68,68,.3);border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700;color:var(--danger);}
+
+/* ALERTS */
+.alert-card{background:#fff;border:1.5px solid rgba(245,158,11,.3);border-radius:13px;padding:16px 18px;margin-bottom:13px;display:flex;gap:13px;align-items:flex-start;box-shadow:0 2px 6px rgba(0,80,40,.04);}
+.alert-icon{font-size:20px;flex-shrink:0;}
+.alert-title{font-weight:700;font-size:13px;color:var(--text);}
+.alert-body{font-size:12px;color:var(--muted);line-height:1.5;}
+
+/* TABLE */
+.user-table{width:100%;border-collapse:collapse;}
+.user-table th{text-align:left;padding:9px 13px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1.5px solid var(--border);}
+.user-table td{padding:11px 13px;font-size:12px;border-bottom:1px solid var(--border);color:var(--text);}
+.user-table tr:hover td{background:var(--bg3);}
+.status-active{color:var(--accent);font-weight:600;}
+.status-flagged{color:var(--danger);font-weight:600;}
+
+/* HISTORY */
+.pts-row{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-radius:9px;margin-bottom:5px;background:#fff;border:1.5px solid var(--border);}
+.pts-row-left{display:flex;align-items:center;gap:9px;}
+.pts-row-icon{font-size:17px;}
+.pts-row-name{font-size:12px;font-weight:600;color:var(--text);}
+.pts-row-date{font-size:10px;color:var(--muted);}
+.pts-row-pts{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--accent);}
+
+/* CELEBRATE */
+.celebrate-overlay{position:fixed;inset:0;pointer-events:none;z-index:9998;display:none;}
+.confetti-piece{position:absolute;animation:confettiFall 2.5s ease-in forwards;}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+.sep{height:1.5px;background:var(--border);margin:22px 0;}
+.empty-state{text-align:center;padding:50px 20px;color:var(--muted);}
+.empty-state-icon{font-size:44px;margin-bottom:12px;}
+.empty-state-text{font-size:14px;}
+.btn-del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:17px;padding:3px;opacity:.5;transition:opacity .2s;}
+.btn-del:hover{opacity:1;}
+
+@media(max-width:900px){.ranking-panel{display:none;}}
+@media(max-width:640px){.sidebar{display:none;}.grid-2,.grid-3{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="bg-deco"></div>
+<div class="toast-container" id="toastContainer"></div>
+<div class="celebrate-overlay" id="celebrateOverlay"></div>
+
+<!-- ============ LOGIN ============ -->
+<div class="screen active" id="screen-login">
+  <div class="login-container">
+    <div class="logo-area">
+      <div class="logo-badge"><span>Sistema BPF</span></div>
+      <div class="logo-title">BPF Pro</div>
+      <div class="logo-sub">Boas Práticas de Fabricação · Gestão Inteligente</div>
+    </div>
+    <div class="role-cards">
+      <div class="role-card operator" onclick="openModal('operator')">
+        <div class="role-icon">⚙️</div>
+        <div class="role-info"><div class="role-name" style="color:var(--accent)">Operador de Máquina</div><div class="role-desc">Registrar atividades BPF e notas de repúdio</div></div>
+        <div class="role-arrow">›</div>
+      </div>
+      <div class="role-card analyst" onclick="openModal('analyst')">
+        <div class="role-icon">🔬</div>
+        <div class="role-info"><div class="role-name" style="color:#3b82f6">Analista de Qualidade</div><div class="role-desc">Monitorar atividades e conformidades BPF</div></div>
+        <div class="role-arrow">›</div>
+      </div>
+      <div class="role-card manager" onclick="openModal('manager')">
+        <div class="role-icon">👑</div>
+        <div class="role-info"><div class="role-name" style="color:var(--gold)">Gestor</div><div class="role-desc">Acesso total · Gerenciar equipes e dados</div></div>
+        <div class="role-arrow">›</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--muted)">© 2025 BPF Pro · Sistema de Gestão de Qualidade</div>
+  </div>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <!-- OPERADOR -->
+    <div id="modal-operator-view">
+      <div class="modal-title">Acesso Operador ⚙️</div>
+      <div class="modal-sub">Informe seus dados para continuar</div>
+      <div class="avatar-upload-wrap">
+        <input type="file" id="op-avatar-input" accept="image/*" onchange="previewAvatar('op')">
+        <img class="avatar-preview-img" id="op-avatar-img" src="">
+        <div class="avatar-ph" id="op-avatar-ph">📷</div>
+        <div class="avatar-hint"><strong>Adicionar foto de perfil</strong></div>
+        <span class="badge-opt">Opcional · Reforça sua identidade</span>
+      </div>
+      <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="op-firstname" placeholder="Seu nome" /></div>
+      <div class="form-group"><label class="form-label">Sobrenome</label><input class="form-input" id="op-lastname" placeholder="Seu sobrenome" /></div>
+      <div class="error-msg" id="op-error">Preencha nome e sobrenome válidos.</div>
+      <button class="btn btn-primary" onclick="loginOperator()">Entrar como Operador</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+    </div>
+    <!-- ANALISTA -->
+    <div id="modal-analyst-view" style="display:none">
+      <div class="modal-title">Acesso Analista 🔬</div>
+      <div class="modal-sub">Informe seu nome completo para autenticar</div>
+      <div class="form-group"><label class="form-label">Nome Completo</label><input class="form-input" id="analyst-name" placeholder="Nome completo do analista" /></div>
+      <div class="error-msg" id="analyst-error">Nome inválido. Acesso negado.</div>
+      <button class="btn btn-blue" onclick="loginAnalyst()">Entrar como Analista</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+    </div>
+    <!-- GESTOR -->
+    <div id="modal-manager-view" style="display:none">
+      <div class="modal-title">Acesso Gestor 👑</div>
+      <div class="modal-sub">Informe seu nome completo para autenticar</div>
+      <div class="form-group"><label class="form-label">Nome Completo</label><input class="form-input" id="manager-name" placeholder="Nome completo do gestor" /></div>
+      <div class="error-msg" id="manager-error">Nome inválido. Acesso negado.</div>
+      <button class="btn btn-gold" onclick="loginManager()">Entrar como Gestor</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="screen" id="screen-app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">BPF Pro</div>
+      <div class="topbar-sep"></div>
+      <img class="topbar-av-img" id="topbar-av-img" src="">
+      <div class="topbar-av-ph" id="topbar-av-ph">👤</div>
+      <div class="topbar-user">Olá, <strong id="topbar-name">–</strong></div>
+    </div>
+    <div class="topbar-right">
+      <span id="topbar-level-badge"></span>
+      <span class="badge-role" id="topbar-role-badge"></span>
+      <button class="btn-logout" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div class="sidebar">
+      <div class="nav-section">
+        <div class="nav-label">Menu</div>
+        <div class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span class="nav-icon">🏠</span>Dashboard</div>
+        <div class="nav-item op-only" onclick="switchTab('bpf')" id="nav-bpf"><span class="nav-icon">✅</span>Registrar BPF</div>
+        <div class="nav-item op-only" onclick="switchTab('repudio')" id="nav-repudio"><span class="nav-icon">🚫</span>Nota de Repúdio</div>
+        <div class="nav-item op-only" onclick="switchTab('minha-pontuacao')" id="nav-minha-pontuacao"><span class="nav-icon">⭐</span>Minha Pontuação</div>
+        <div class="nav-item anal-mgr-only" onclick="switchTab('atividades')" id="nav-atividades"><span class="nav-icon">📋</span>Atividades</div>
+        <div class="nav-item anal-mgr-only" onclick="switchTab('alertas')" id="nav-alertas"><span class="nav-icon">🔔</span>Alertas <span id="alert-count-badge" style="margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;display:none"></span></div>
+        <div class="nav-item mgr-only" onclick="switchTab('usuarios')" id="nav-usuarios"><span class="nav-icon">👥</span>Usuários</div>
+        <div class="nav-item mgr-only" onclick="switchTab('relatorios')" id="nav-relatorios"><span class="nav-icon">📊</span>Relatórios</div>
+      </div>
+    </div>
+
+    <div class="main-content">
+
+      <!-- DASHBOARD -->
+      <div class="tab-view active" id="tab-dashboard">
+        <div class="page-header"><div class="page-title">Dashboard</div><div class="page-sub">Visão geral das atividades BPF</div></div>
+        <div class="grid-3" style="margin-bottom:20px">
+          <div class="card"><div class="card-title">Postagens</div><div class="card-value" id="stat-posts">0</div><div class="card-sub">registros BPF</div></div>
+          <div class="card"><div class="card-title">Pontos Distribuídos</div><div class="card-value" id="stat-pts">0</div><div class="card-sub">total geral</div></div>
+          <div class="card"><div class="card-title">Notas de Repúdio</div><div class="card-value" id="stat-reps" style="color:var(--danger);-webkit-text-fill-color:var(--danger)">0</div><div class="card-sub">abertas</div></div>
+        </div>
+        <div id="op-score-widget" style="display:none">
+          <div id="level-banner-area"></div>
+          <div class="score-widget">
+            <div class="score-widget-label">Sua Pontuação Total</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:4px">
+              <div class="score-widget-pts" id="my-score-big">0</div>
+              <span id="my-level-dot-big"></span>
+            </div>
+            <div id="my-level-label" style="margin-bottom:4px"></div>
+            <div class="score-widget-rank">Ranking: <strong id="my-rank-pos">#–</strong></div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="my-progress-bar" style="width:0%"></div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px" id="next-level-hint"></div>
+          </div>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:13px;color:var(--text)">Postagens Recentes</div>
+        <div class="posts-feed" id="dashboard-feed"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma postagem ainda.</div></div></div>
+      </div>
+
+      <!-- BPF -->
+      <div class="tab-view" id="tab-bpf">
+        <div class="page-header"><div class="page-title">✅ Registrar Atividade BPF</div><div class="page-sub">Selecione uma ou mais atividades realizadas e comprove com fotos</div></div>
+        <div class="post-compose">
+          <div class="post-compose-title">📋 Selecione as Atividades Realizadas <span style="font-size:12px;color:var(--muted);font-weight:400">(pode escolher várias)</span></div>
+          <div class="activity-grid" id="activity-grid"></div>
+
+          <!-- PONTOS PREVIEW -->
+          <div class="pts-preview" id="pts-preview" style="display:none">
+            <div>
+              <div class="pts-preview-label">🎯 Total de pontos desta postagem</div>
+              <div class="pts-preview-note" id="pts-preview-activities"></div>
+            </div>
+            <div style="text-align:right">
+              <div class="pts-preview-total" id="pts-preview-total">+0</div>
+              <div class="pts-preview-note">pontos</div>
+            </div>
+          </div>
+
+          <div class="image-upload-area" onclick="document.getElementById('img-input').click()">
+            <input type="file" id="img-input" accept="image/*" multiple style="display:none" onchange="handleImages(event)">
+            <div class="upload-icon">📷</div>
+            <div class="upload-text">Clique para <strong>tirar foto / anexar imagem</strong></div>
+            <div class="upload-text" style="font-size:11px;margin-top:3px">PNG, JPG, WEBP · Múltiplas imagens permitidas</div>
+          </div>
+          <div class="image-previews" id="image-previews"></div>
+          <textarea class="text-area" id="post-caption" placeholder="Descreva brevemente o que foi feito... (ex: Varri toda a área, organizei os materiais e fiz a higienização da máquina)"></textarea>
+          <button class="btn btn-primary" onclick="submitPost()">🚀 Publicar Registro BPF</button>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:13px;color:var(--text)">Minhas Postagens</div>
+        <div class="posts-feed" id="my-posts-feed"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma postagem ainda.</div></div></div>
+      </div>
+
+      <!-- REPUDIO -->
+      <div class="tab-view" id="tab-repudio">
+        <div class="page-header"><div class="page-title">🚫 Nota de Repúdio</div><div class="page-sub">Reporte comportamentos contrários às BPF de forma ética</div></div>
+        <div class="repudiation-wrapper">
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--danger);margin-bottom:16px">⚠️ Abrir Nova Nota de Repúdio</div>
+          <div class="rep-paper" id="rep-paper-doc">
+            <div class="rep-paper-inner">
+              <div class="rep-paper-header">
+                <div class="rep-co-label">BPF Pro · Gestão de Qualidade</div>
+                <div class="rep-doc-title">NOTA DE REPÚDIO</div>
+                <div class="rep-doc-date">Data: <strong id="rep-date-display"></strong></div>
+              </div>
+              <div class="rep-field-group"><label class="rep-field-label">Cargo do Reportado</label><select class="rep-field-select" id="rep-cargo"><option value="">Selecione o cargo...</option><option>Operador de Máquina</option><option>Ajudante de Produção</option></select></div>
+              <div class="rep-field-group"><label class="rep-field-label">Nome Completo do Reportado</label><input class="rep-field-input" type="text" id="rep-nome" placeholder="Nome e sobrenome da pessoa reportada" /></div>
+              <div class="rep-field-group"><label class="rep-field-label">Máquina / Setor onde Trabalha</label><input class="rep-field-input" type="text" id="rep-maquina" placeholder="Ex: Máquina 3 · Linha de Envase" /></div>
+              <div class="rep-field-group"><label class="rep-field-label">Descrição da Ocorrência</label><textarea class="rep-field-textarea" id="rep-desc" placeholder="Descreva detalhadamente o comportamento ou prática incorreta observada, contrária às Boas Práticas de Fabricação..."></textarea></div>
+              <div class="rep-field-group"><label class="rep-field-label">Gravidade da Ocorrência</label><select class="rep-field-select" id="rep-severity"><option value="">Selecione a gravidade...</option><option>Leve</option><option>Moderada</option><option>Grave</option></select></div>
+              <div class="rep-field-group"><label class="rep-field-label">Reportado por</label><input class="rep-field-input" type="text" id="rep-by" readonly /></div>
+              <div class="rep-actions">
+                <button class="rep-btn rep-btn-submit" onclick="submitRepudio()">📝 Registrar Nota</button>
+                <button class="rep-btn rep-btn-print" onclick="printRepudio()">🖨️ Imprimir</button>
+                <button class="rep-btn rep-btn-save" onclick="saveRepudio()">💾 Download</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:13px;color:var(--text)">Notas Abertas por Mim</div>
+        <div class="rep-list" id="my-rep-list"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">Nenhuma nota aberta por você.</div></div></div>
+      </div>
+
+      <!-- PONTUAÇÃO -->
+      <div class="tab-view" id="tab-minha-pontuacao">
+        <div class="page-header"><div class="page-title">⭐ Minha Pontuação</div><div class="page-sub">Histórico de pontos e nível atual</div></div>
+        <div id="level-banner-area-page"></div>
+        <div class="score-widget">
+          <div class="score-widget-label">Pontuação Total</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:4px">
+            <div class="score-widget-pts" id="my-score-page">0</div>
+            <span id="my-level-dot-page"></span>
+          </div>
+          <div id="my-level-label-page" style="margin-bottom:4px"></div>
+          <div class="score-widget-rank">Posição: <strong id="my-rank-page">#–</strong></div>
+        </div>
+
+        <!-- LEVEL GUIDE -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-title" style="margin-bottom:14px">🎽 Níveis de Camiseta — Metas de Pontuação</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:#e6f9ee;border:1.5px solid rgba(0,184,84,.25)">
+              <span class="level-dot lvl-green" style="width:16px;height:16px"></span>
+              <div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">Nível Verde — 2.500 pts</div><div style="font-size:11px;color:var(--muted)">Camiseta Verde · Colaborador BPF Comprometido</div></div>
+              <span id="chk-lvl1" style="font-size:18px"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:#eff6ff;border:1.5px solid rgba(59,130,246,.25)">
+              <span class="level-dot lvl-blue" style="width:16px;height:16px"></span>
+              <div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">Nível Azul — 5.000 pts</div><div style="font-size:11px;color:var(--muted)">Camiseta Azul · Destaque em BPF</div></div>
+              <span id="chk-lvl2" style="font-size:18px"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:#fff7ed;border:1.5px solid rgba(249,115,22,.25)">
+              <span class="level-dot lvl-orange" style="width:16px;height:16px"></span>
+              <div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">Nível Laranja — 7.000 pts</div><div style="font-size:11px;color:var(--muted)">Camiseta Laranja · Especialista BPF</div></div>
+              <span id="chk-lvl3" style="font-size:18px"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:#faf5ff;border:1.5px solid rgba(168,85,247,.25)">
+              <span class="level-dot lvl-purple" style="width:16px;height:16px"></span>
+              <div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">Nível Roxo — 9.000 pts</div><div style="font-size:11px;color:var(--muted)">Camiseta Roxa · Mestre em BPF</div></div>
+              <span id="chk-lvl4" style="font-size:18px"></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;color:var(--text)">Histórico de Pontos</div>
+        <div id="pts-history-list"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">Nenhuma pontuação.</div></div></div>
+      </div>
+
+      <!-- ATIVIDADES -->
+      <div class="tab-view" id="tab-atividades">
+        <div class="page-header"><div class="page-title">📋 Todas as Atividades</div><div class="page-sub">Registros BPF de todos os operadores</div></div>
+        <div class="posts-feed" id="all-posts-feed"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma atividade.</div></div></div>
+      </div>
+
+      <!-- ALERTAS -->
+      <div class="tab-view" id="tab-alertas">
+        <div class="page-header"><div class="page-title">🔔 Alertas e Repúdios</div><div class="page-sub">Notas abertas e alertas de reincidência</div></div>
+        <div id="alerts-container"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">Nenhum alerta.</div></div></div>
+        <div class="sep"></div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:13px;color:var(--text)">Todas as Notas de Repúdio</div>
+        <div class="rep-list" id="all-rep-list"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma nota.</div></div></div>
+      </div>
+
+      <!-- USUÁRIOS -->
+      <div class="tab-view" id="tab-usuarios">
+        <div class="page-header"><div class="page-title">👥 Gerenciar Usuários</div><div class="page-sub">Operadores cadastrados e seus níveis</div></div>
+        <div class="card" style="overflow-x:auto">
+          <table class="user-table">
+            <thead><tr><th>Foto</th><th>Nome</th><th>Nível</th><th>Postagens</th><th>Pontos</th><th>Repúdios</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="users-tbody"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">Nenhum usuário.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- RELATÓRIOS -->
+      <div class="tab-view" id="tab-relatorios">
+        <div class="page-header"><div class="page-title">📊 Relatórios</div><div class="page-sub">Panorama completo do sistema BPF</div></div>
+        <div class="grid-2" style="margin-bottom:22px">
+          <div class="card"><div class="card-title">Operadores Ativos</div><div class="card-value" id="rep-stat-operators">0</div><div class="card-sub">cadastrados</div></div>
+          <div class="card"><div class="card-title">Atividades</div><div class="card-value" id="rep-stat-posts">0</div><div class="card-sub">registros BPF</div></div>
+          <div class="card"><div class="card-title">Total de Pontos</div><div class="card-value" id="rep-stat-pts">0</div><div class="card-sub">distribuídos</div></div>
+          <div class="card"><div class="card-title">Notas de Repúdio</div><div class="card-value" id="rep-stat-reps" style="color:var(--danger);-webkit-text-fill-color:var(--danger)">0</div><div class="card-sub">total</div></div>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:13px;color:var(--text)">Ranking Completo</div>
+        <div class="card" style="overflow-x:auto;margin-bottom:18px">
+          <table class="user-table">
+            <thead><tr><th>Pos.</th><th>Operador</th><th>Nível</th><th>Pontos</th><th>Postagens</th></tr></thead>
+            <tbody id="full-ranking-tbody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhum dado.</td></tr></tbody>
+          </table>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑️ Limpar Todos os Dados</button>
+      </div>
+
+    </div><!-- /main-content -->
+
+    <!-- RANKING PANEL -->
+    <div class="ranking-panel">
+      <div class="panel-title">🏆 Ranking de Operadores</div>
+      <div id="ranking-list"><div class="empty-state" style="padding:20px"><div class="empty-state-icon">🏅</div><div class="empty-state-text" style="font-size:12px">Nenhum operador.</div></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DATABASE — localStorage
+============================================================ */
+let DB={posts:[],repudios:[],users:{},nextId:1};
+function saveDB(){try{localStorage.setItem('bpf_pro_v3',JSON.stringify(DB));}catch(e){}}
+function loadDB(){try{const r=localStorage.getItem('bpf_pro_v3');if(r)DB=JSON.parse(r);}catch(e){}}
+loadDB();
+
+/* ============================================================
+   ACTIVITIES
+============================================================ */
+const ACTIVITIES=[
+  {id:'sweep',   icon:'🧹', name:'Varreu a área',        pts:100, priority:'low'   },
+  {id:'organize',icon:'📦', name:'Organizou o setor',    pts:150, priority:'medium'},
+  {id:'clean',   icon:'🫧',  name:'Limpeza de máquina',   pts:200, priority:'high'  },
+  {id:'waste',   icon:'🗑️', name:'Descarte de resíduos',  pts:120, priority:'low'   },
+  {id:'sanitize',icon:'🧴', name:'Higienização geral',   pts:180, priority:'medium'},
+  {id:'inspect', icon:'🔍', name:'Inspeção de área',     pts:160, priority:'medium'},
+  {id:'label',   icon:'🏷️', name:'Etiquetagem correta',  pts:130, priority:'low'   },
+  {id:'train',   icon:'📚', name:'Revisou procedimento', pts:140, priority:'medium'},
+  {id:'ppecheck',icon:'🦺', name:'Verificou EPI/EPC',    pts:110, priority:'medium'},
+  {id:'floor',   icon:'🪣', name:'Lavou o piso',         pts:170, priority:'high'  },
+  {id:'machine', icon:'🔧', name:'Manutenção preventiva',pts:190, priority:'high'  },
+  {id:'storage', icon:'📋', name:'Organizou estoque',    pts:145, priority:'medium'},
+];
+const REPUDIO_PTS=500;
+
+/* ============================================================
+   LEVELS SYSTEM
+============================================================ */
+const LEVELS=[
+  {min:0,    max:2499, label:'Sem nível',       dotClass:'',              badgeClass:'lvl-none-bg',   color:'',               emoji:'⚪', shirt:''},
+  {min:2500, max:4999, label:'Nível Verde',     dotClass:'lvl-green',     badgeClass:'lvl-green-bg',  color:'var(--lvl1)',     emoji:'🟢', shirt:'Camiseta Verde'},
+  {min:5000, max:6999, label:'Nível Azul',      dotClass:'lvl-blue',      badgeClass:'lvl-blue-bg',   color:'var(--lvl2)',     emoji:'🔵', shirt:'Camiseta Azul'},
+  {min:7000, max:8999, label:'Nível Laranja',   dotClass:'lvl-orange',    badgeClass:'lvl-orange-bg', color:'var(--lvl3)',     emoji:'🟠', shirt:'Camiseta Laranja'},
+  {min:9000, max:Infinity, label:'Nível Roxo',  dotClass:'lvl-purple',    badgeClass:'lvl-purple-bg', color:'var(--lvl4)',     emoji:'🟣', shirt:'Camiseta Roxa'},
+];
+const LEVEL_THRESHOLDS=[2500,5000,7000,9000];
+const LEVEL_MSGS=[
+  {pts:2500, title:'🟢 Nível Verde Atingido!', msg:'Parabéns! Você conquistou o Nível Verde e garante sua Camiseta Verde BPF! Continue assim, sua dedicação faz a diferença para toda a empresa! 👏', color:'green'},
+  {pts:5000, title:'🔵 Nível Azul Atingido!',  msg:'Incrível! Você atingiu o Nível Azul! Sua Camiseta Azul BPF é merecida — você é um verdadeiro destaque da equipe! A empresa se orgulha de você! 🌟', color:'blue'},
+  {pts:7000, title:'🟠 Nível Laranja Atingido!',msg:'Sensacional! Nível Laranja conquistado! Você é um Especialista BPF e merece sua Camiseta Laranja! Seu comprometimento é inspiração para todos! 🔥', color:'orange'},
+  {pts:9000, title:'🟣 Nível Roxo Atingido!',  msg:'EXTRAORDINÁRIO! Você alcançou o NÍVEL MÁXIMO — Nível Roxo! Mestre em BPF e portador da Camiseta Roxa! A empresa agradece imensamente sua dedicação! 🏆👑', color:'purple'},
+];
+
+function getLevel(pts){
+  for(let i=LEVELS.length-1;i>=0;i--) if(pts>=LEVELS[i].min) return LEVELS[i];
+  return LEVELS[0];
+}
+
+/* ============================================================
+   AUTH
+============================================================ */
+let currentUser=null,pendingAvatar=null;
+
+function openModal(role){
+  ['operator','analyst','manager'].forEach(r=>document.getElementById('modal-'+r+'-view').style.display=r===role?'block':'none');
+  document.querySelectorAll('.error-msg').forEach(e=>e.style.display='none');
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal').classList.remove('open');
+  pendingAvatar=null;
+  document.getElementById('op-avatar-img').style.display='none';
+  document.getElementById('op-avatar-ph').style.display='flex';
+}
+function previewAvatar(prefix){
+  const input=document.getElementById(prefix+'-avatar-input');
+  if(!input.files[0])return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    pendingAvatar=e.target.result;
+    document.getElementById(prefix+'-avatar-img').src=pendingAvatar;
+    document.getElementById(prefix+'-avatar-img').style.display='block';
+    document.getElementById(prefix+'-avatar-ph').style.display='none';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+function loginOperator(){
+  const first=document.getElementById('op-firstname').value.trim();
+  const last=document.getElementById('op-lastname').value.trim();
+  const errEl=document.getElementById('op-error');
+  if(!first||!last){errEl.style.display='block';errEl.textContent='Preencha nome e sobrenome.';return;}
+  const name=first+' '+last;
+  const conflict=Object.keys(DB.users).find(k=>{
+    if(DB.users[k].role!=='operator')return false;
+    return k.split(' ')[0].toLowerCase()===first.toLowerCase()&&k!==name;
+  });
+  if(conflict){errEl.style.display='block';errEl.textContent='Já existe um operador com esse primeiro nome.';return;}
+  if(!DB.users[name]) DB.users[name]={name,role:'operator',points:0,posts:[],repudiosReceived:[],repudiosSent:[],avatar:pendingAvatar||null,ts:new Date().toISOString(),levelNotified:[]};
+  else if(pendingAvatar) DB.users[name].avatar=pendingAvatar;
+  saveDB();currentUser={name,role:'operator'};closeModal();enterApp();
+}
+function loginAnalyst(){
+  const name=document.getElementById('analyst-name').value.trim();
+  if(name.toLowerCase()!=='leonardo barbaso silva'){document.getElementById('analyst-error').style.display='block';return;}
+  if(!DB.users[name]) DB.users[name]={name,role:'analyst',points:0,posts:[],repudiosReceived:[],repudiosSent:[],avatar:null,levelNotified:[]};
+  saveDB();currentUser={name,role:'analyst'};closeModal();enterApp();
+}
+function loginManager(){
+  const name=document.getElementById('manager-name').value.trim();
+  if(name.toLowerCase()!=='daniel valgroup'){document.getElementById('manager-error').style.display='block';return;}
+  if(!DB.users[name]) DB.users[name]={name,role:'manager',points:0,posts:[],repudiosReceived:[],repudiosSent:[],avatar:null,levelNotified:[]};
+  saveDB();currentUser={name,role:'manager'};closeModal();enterApp();
+}
+function logout(){
+  currentUser=null;
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById('screen-login').classList.add('active');
+  ['op-firstname','op-lastname','analyst-name','manager-name'].forEach(id=>document.getElementById(id).value='');
+}
+
+/* ============================================================
+   ENTER APP
+============================================================ */
+function enterApp(){
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+  document.getElementById('topbar-name').textContent=currentUser.name;
+  const avImg=document.getElementById('topbar-av-img');
+  const avPh=document.getElementById('topbar-av-ph');
+  const av=DB.users[currentUser.name]?.avatar;
+  if(av){avImg.src=av;avImg.style.display='block';avPh.style.display='none';}
+  else{avImg.style.display='none';avPh.style.display='flex';}
+  const badge=document.getElementById('topbar-role-badge');
+  if(currentUser.role==='operator'){badge.className='badge-role badge-operator';badge.textContent='⚙️ Operador';}
+  else if(currentUser.role==='analyst'){badge.className='badge-role badge-analyst';badge.textContent='🔬 Analista';}
+  else{badge.className='badge-role badge-manager';badge.textContent='👑 Gestor';}
+  document.querySelectorAll('.op-only').forEach(el=>el.style.display=currentUser.role==='operator'?'':'none');
+  document.querySelectorAll('.anal-mgr-only').forEach(el=>el.style.display=currentUser.role!=='operator'?'':'none');
+  document.querySelectorAll('.mgr-only').forEach(el=>el.style.display=currentUser.role==='manager'?'':'none');
+  document.getElementById('op-score-widget').style.display=currentUser.role==='operator'?'':'none';
+  document.getElementById('rep-date-display').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('rep-by').value=currentUser.name;
+  buildActivityGrid();switchTab('dashboard');refreshAll();
+}
+
+/* ============================================================
+   TABS
+============================================================ */
+function switchTab(id){
+  document.querySelectorAll('.tab-view').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  const nav=document.getElementById('nav-'+id);if(nav)nav.classList.add('active');
+  refreshAll();
+}
+
+/* ============================================================
+   MULTI-ACTIVITY SELECTION
+============================================================ */
+let selectedActivities=new Set(); // set of activity IDs
+let uploadedImages=[];
+
+function buildActivityGrid(){
+  const grid=document.getElementById('activity-grid');grid.innerHTML='';
+  ACTIVITIES.forEach(a=>{
+    const el=document.createElement('div');el.className='activity-chip';el.id='chip-'+a.id;
+    el.innerHTML=`<div class="activity-chip-left"><span class="activity-chip-icon">${a.icon}</span><span class="activity-chip-name">${a.name}</span></div><span class="activity-chip-pts">+${a.pts}</span><span class="chip-check">✓</span>`;
+    el.onclick=()=>toggleActivity(a.id);
+    grid.appendChild(el);
+  });
+}
+
+function toggleActivity(id){
+  if(selectedActivities.has(id)) selectedActivities.delete(id);
+  else selectedActivities.add(id);
+  // update chip UI
+  ACTIVITIES.forEach(a=>{
+    const chip=document.getElementById('chip-'+a.id);
+    if(!chip)return;
+    if(selectedActivities.has(a.id)) chip.classList.add('selected');
+    else chip.classList.remove('selected');
+  });
+  updatePtsPreview();
+}
+
+function updatePtsPreview(){
+  const preview=document.getElementById('pts-preview');
+  const totalEl=document.getElementById('pts-preview-total');
+  const actsEl=document.getElementById('pts-preview-activities');
+  if(selectedActivities.size===0){preview.style.display='none';return;}
+  preview.style.display='flex';
+  let total=0;
+  const names=[];
+  ACTIVITIES.forEach(a=>{
+    if(selectedActivities.has(a.id)){total+=a.pts;names.push(a.icon+' '+a.name);}
+  });
+  totalEl.textContent='+'+total;
+  actsEl.textContent=names.join(' · ');
+}
+
+function getTotalSelectedPts(){
+  let t=0;
+  ACTIVITIES.forEach(a=>{if(selectedActivities.has(a.id))t+=a.pts;});
+  return t;
+}
+function getSelectedPriority(){
+  let p='low';
+  ACTIVITIES.forEach(a=>{
+    if(!selectedActivities.has(a.id))return;
+    if(a.priority==='high')p='high';
+    else if(a.priority==='medium'&&p!=='high')p='medium';
+  });
+  return p;
+}
+function getSelectedActivitiesArr(){
+  return ACTIVITIES.filter(a=>selectedActivities.has(a.id));
+}
+
+function handleImages(e){
+  Array.from(e.target.files).forEach(f=>{const r=new FileReader();r.onload=ev=>{uploadedImages.push(ev.target.result);renderPreviews();};r.readAsDataURL(f);});
+}
+function renderPreviews(){
+  const c=document.getElementById('image-previews');c.innerHTML='';
+  uploadedImages.forEach((img,i)=>{const d=document.createElement('div');d.className='image-preview';d.innerHTML=`<img src="${img}"><button class="remove-img" onclick="rmImg(${i})">✕</button>`;c.appendChild(d);});
+}
+function rmImg(i){uploadedImages.splice(i,1);renderPreviews();}
+
+/* ============================================================
+   SUBMIT POST
+============================================================ */
+function submitPost(){
+  if(selectedActivities.size===0){showToast('⚠️','Selecione atividades','Escolha pelo menos uma atividade realizada.','warning');return;}
+  const acts=getSelectedActivitiesArr();
+  const totalPts=getTotalSelectedPts();
+  const post={
+    id:DB.nextId++,author:currentUser.name,role:currentUser.role,
+    activities:acts, // ARRAY now
+    caption:document.getElementById('post-caption').value.trim(),
+    images:[...uploadedImages],points:totalPts,priority:getSelectedPriority(),
+    ts:new Date().toISOString()
+  };
+  DB.posts.unshift(post);
+  ensure(currentUser.name,currentUser.role);
+  const prevPts=DB.users[currentUser.name].points;
+  DB.users[currentUser.name].points+=totalPts;
+  DB.users[currentUser.name].posts.push(post.id);
+  const newPts=DB.users[currentUser.name].points;
+  saveDB();
+
+  // Check level up
+  checkLevelUp(prevPts,newPts,currentUser.name);
+
+  // Reset
+  selectedActivities.clear();uploadedImages=[];
+  document.getElementById('post-caption').value='';document.getElementById('image-previews').innerHTML='';document.getElementById('img-input').value='';
+  document.querySelectorAll('.activity-chip').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('pts-preview').style.display='none';
+
+  celebrate();
+  showToast('🎉','Atividade registrada!',`+${totalPts} pts de ${acts.length} atividade(s) · A empresa agradece por ter um colaborador tão prestativo! 🌟`,'success');
+  refreshAll();
+}
+
+/* ============================================================
+   LEVEL UP CHECK
+============================================================ */
+function checkLevelUp(prevPts,newPts,name){
+  LEVEL_MSGS.forEach(lm=>{
+    if(prevPts<lm.pts&&newPts>=lm.pts){
+      // Show banner + toast
+      setTimeout(()=>{
+        showToast('🎉',lm.title,lm.msg,'level');
+        celebrate();
+        updateLevelBanner(newPts);
+      },600);
+    }
+  });
+}
+
+function updateLevelBanner(pts){
+  const lv=getLevel(pts);
+  const areas=['level-banner-area','level-banner-area-page'];
+  areas.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    if(!lv.emoji||lv.min===0){el.innerHTML='';return;}
+    const msgs={
+      'Nível Verde':'Você conquistou o Nível Verde! 🎽 Camiseta Verde garantida!',
+      'Nível Azul':'Você é um Destaque BPF! 🎽 Camiseta Azul é sua!',
+      'Nível Laranja':'Especialista BPF! 🎽 Camiseta Laranja conquistada!',
+      'Nível Roxo':'MESTRE BPF! 🎽 Camiseta Roxa — nível máximo alcançado!',
+    };
+    el.innerHTML=`<div class="level-banner ${lv.badgeClass.replace('-bg','')}">
+      <div class="level-banner-icon">${lv.emoji}</div>
+      <div>
+        <div class="level-banner-title" style="color:${lv.color}">${lv.label}</div>
+        <div class="level-banner-msg">${msgs[lv.label]||'Continue acumulando pontos!'}</div>
+      </div>
+    </div>`;
+  });
+}
+
+/* ============================================================
+   SUBMIT REPUDIO
+============================================================ */
+function submitRepudio(){
+  const cargo=document.getElementById('rep-cargo').value;
+  const nome=document.getElementById('rep-nome').value.trim();
+  const maquina=document.getElementById('rep-maquina').value.trim();
+  const desc=document.getElementById('rep-desc').value.trim();
+  const severity=document.getElementById('rep-severity').value;
+  if(!cargo||!nome||!maquina||!desc||!severity){showToast('⚠️','Campos obrigatórios','Preencha todos os campos.','warning');return;}
+  const rep={id:DB.nextId++,reportedBy:currentUser.name,reportedByName:currentUser.name,targetName:nome,targetRole:cargo,machine:maquina,desc,severity,ts:new Date().toISOString(),pts:REPUDIO_PTS};
+  DB.repudios.unshift(rep);
+  ensure(currentUser.name,currentUser.role);
+  const prev=DB.users[currentUser.name].points;
+  DB.users[currentUser.name].repudiosSent.push(rep.id);DB.users[currentUser.name].points+=REPUDIO_PTS;
+  const nw=DB.users[currentUser.name].points;
+  ensure(nome,cargo);DB.users[nome].repudiosReceived.push(rep.id);
+  checkLevelUp(prev,nw,currentUser.name);
+  saveDB();
+  document.getElementById('rep-cargo').value='';document.getElementById('rep-nome').value='';document.getElementById('rep-maquina').value='';document.getElementById('rep-desc').value='';document.getElementById('rep-severity').value='';
+  showToast('📝','Nota enviada!',`+${REPUDIO_PTS} pts · Nota registrada. Analista e Gestor serão notificados.`,'warning');
+  refreshAll();
+}
+
+/* ============================================================
+   PRINT/SAVE REPUDIO
+============================================================ */
+function getRepData(){
+  return{cargo:document.getElementById('rep-cargo').value||'(não preenchido)',nome:document.getElementById('rep-nome').value||'(não preenchido)',maquina:document.getElementById('rep-maquina').value||'(não preenchido)',desc:document.getElementById('rep-desc').value||'(não preenchido)',severity:document.getElementById('rep-severity').value||'(não preenchido)',by:document.getElementById('rep-by').value,date:document.getElementById('rep-date-display').textContent};
+}
+function repHtmlDoc(d){
+  return`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Nota de Repúdio</title>
+  <style>body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a;}.header{text-align:center;border-bottom:2px solid #1a1a1a;padding-bottom:16px;margin-bottom:22px;}.co{font-size:10px;letter-spacing:3px;color:#888;text-transform:uppercase;margin-bottom:5px;}.title{font-size:24px;font-weight:800;color:#b91c1c;}.date{font-size:12px;color:#666;margin-top:4px;}.field{margin-bottom:16px;}.label{font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}.value{border-bottom:1px solid #ccc;padding:7px 0;font-size:14px;min-height:28px;}.footer{margin-top:40px;display:flex;justify-content:space-between;}.sign{text-align:center;}.sign-line{width:160px;border-bottom:1px solid #000;margin:30px auto 6px;}.sign-label{font-size:11px;color:#666;}@media print{.print-btn{display:none!important;}}</style>
+  </head><body><div class="header"><div class="co">BPF Pro · Gestão de Qualidade</div><div class="title">NOTA DE REPÚDIO</div><div class="date">Data: ${d.date}</div></div>
+  <div class="field"><div class="label">Cargo</div><div class="value">${d.cargo}</div></div>
+  <div class="field"><div class="label">Nome Completo do Reportado</div><div class="value">${d.nome}</div></div>
+  <div class="field"><div class="label">Máquina / Setor</div><div class="value">${d.maquina}</div></div>
+  <div class="field"><div class="label">Descrição da Ocorrência</div><div class="value">${d.desc}</div></div>
+  <div class="field"><div class="label">Gravidade</div><div class="value">${d.severity}</div></div>
+  <div class="field"><div class="label">Reportado por</div><div class="value">${d.by}</div></div>
+  <div class="footer"><div class="sign"><div class="sign-line"></div><div class="sign-label">Reportante</div></div><div class="sign"><div class="sign-line"></div><div class="sign-label">Gestor</div></div><div class="sign"><div class="sign-line"></div><div class="sign-label">Analista</div></div></div>
+  <button class="print-btn" onclick="window.print()" style="margin-top:22px;padding:10px 22px;background:#b91c1c;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">🖨️ Imprimir</button>
+  </body></html>`;
+}
+function printRepudio(){const d=getRepData();const w=window.open('','_blank','width=800,height=900');w.document.write(repHtmlDoc(d));w.document.close();setTimeout(()=>w.print(),600);}
+function saveRepudio(){
+  const d=getRepData();
+  const blob=new Blob([repHtmlDoc(d)],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;
+  a.download=`nota-repudio-${d.nome.replace(/\s+/g,'-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.html`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast('💾','Download iniciado!','Abra o arquivo HTML e use Ctrl+P para salvar como PDF.','success');
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function ensure(name,role){if(!DB.users[name])DB.users[name]={name,role,points:0,posts:[],repudiosReceived:[],repudiosSent:[],avatar:null,levelNotified:[]};}
+function avHTML(name,size=36){
+  const u=DB.users[name];
+  if(u&&u.avatar)return`<img class="post-av-img" src="${u.avatar}" style="width:${size}px;height:${size}px">`;
+  const init=(name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  return`<div class="post-av-ph" style="width:${size}px;height:${size}px;font-size:${Math.floor(size/2.8)}px">${init}</div>`;
+}
+function levelDotHTML(pts,size=14){
+  const lv=getLevel(pts);
+  if(!lv.dotClass)return'';
+  return`<span class="level-dot ${lv.dotClass}" style="width:${size}px;height:${size}px;display:inline-block;border-radius:50%;flex-shrink:0"></span>`;
+}
+function levelBadgeHTML(pts){
+  const lv=getLevel(pts);
+  if(lv.min===0)return'';
+  return`<span class="level-badge ${lv.badgeClass}">${lv.emoji} ${lv.label}</span>`;
+}
+
+/* ============================================================
+   REFRESH
+============================================================ */
+function refreshAll(){
+  updateStats();updateRanking();updateDashboardFeed();updateMyPosts();
+  updateMyScore();updateAllPosts();updateAlerts();updateUsers();updateReports();updateMyRep();updateAlertBadge();
+  updateTopbarLevel();
+}
+function updateTopbarLevel(){
+  if(!currentUser||currentUser.role!=='operator')return;
+  const pts=DB.users[currentUser.name]?.points||0;
+  const lv=getLevel(pts);
+  const el=document.getElementById('topbar-level-badge');
+  if(lv.min===0){el.innerHTML='';return;}
+  el.innerHTML=`<span class="level-badge ${lv.badgeClass}" style="font-size:10px">${lv.emoji} ${lv.label}</span>`;
+}
+function updateStats(){
+  const tp=Object.values(DB.users).reduce((s,u)=>s+u.points,0);
+  document.getElementById('stat-posts').textContent=DB.posts.length;
+  document.getElementById('stat-pts').textContent=tp;
+  document.getElementById('stat-reps').textContent=DB.repudios.length;
+}
+function getRanking(){return Object.values(DB.users).filter(u=>u.role==='operator').sort((a,b)=>b.points-a.points);}
+function updateRanking(){
+  const r=getRanking();const c=document.getElementById('ranking-list');
+  if(!r.length){c.innerHTML='<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🏅</div><div class="empty-state-text" style="font-size:12px">Nenhum operador.</div></div>';return;}
+  const medals=['🥇','🥈','🥉'];const cls=['gold','silver','bronze'];
+  c.innerHTML=r.map((u,i)=>{
+    const avh=u.avatar?`<img class="rank-av" src="${u.avatar}">`:`<div class="rank-av-ph">${u.name[0]||'?'}</div>`;
+    return`<div class="rank-item"><div class="rank-pos ${cls[i]||'other'}">${i+1}</div>${avh}
+      <div class="rank-info"><div class="rank-name">${u.name} ${levelDotHTML(u.points,10)}</div><div class="rank-pts">${u.points} pts</div></div>
+      <div style="font-size:16px">${medals[i]||'🏅'}</div></div>`;
+  }).join('');
+}
+
+function buildPostHTML(p,del=false){
+  const date=new Date(p.ts).toLocaleString('pt-BR');
+  const priMap={high:'Alta',medium:'Média',low:'Baixa'};
+  const priCls={high:'priority-high',medium:'priority-medium',low:'priority-low'};
+  const imgs=(p.images||[]).map(img=>`<img class="post-img" src="${img}" onclick="showImg('${img}')">`).join('');
+  // Support both old (activity) and new (activities) format
+  const acts=p.activities||[p.activity].filter(Boolean);
+  const actTags=acts.map(a=>`<span class="post-activity-tag">${a.icon} ${a.name}</span>`).join('');
+  return`<div class="post-item" id="post-${p.id}">
+    <div class="post-header">${avHTML(p.author)}
+      <div class="post-meta"><div class="post-author">${p.author} ${levelDotHTML(DB.users[p.author]?.points||0,10)}</div><div class="post-time">${date}</div></div>
+      <div class="post-points"><div class="post-points-num">+${p.points}</div><div class="post-points-label">pts</div></div>
+      <span class="post-priority ${priCls[p.priority]||'priority-low'}">${priMap[p.priority]||'Baixa'}</span>
+      ${del?`<button class="btn-del" onclick="deletePost(${p.id})">🗑️</button>`:''}
+    </div>
+    <div class="post-body">
+      <div class="post-activity-tags">${actTags}</div>
+      ${p.caption?`<div class="post-caption">${p.caption}</div>`:''}
+      ${imgs?`<div class="post-images">${imgs}</div>`:''}</div></div>`;
+}
+
+function updateDashboardFeed(){
+  const el=document.getElementById('dashboard-feed');const cd=currentUser&&currentUser.role==='manager';
+  el.innerHTML=DB.posts.length?DB.posts.slice(0,10).map(p=>buildPostHTML(p,cd)).join(''):'<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma postagem ainda.</div></div>';
+}
+function updateMyPosts(){
+  if(!currentUser||currentUser.role!=='operator')return;
+  const el=document.getElementById('my-posts-feed');const posts=DB.posts.filter(p=>p.author===currentUser.name);
+  el.innerHTML=posts.length?posts.map(p=>buildPostHTML(p)).join(''):'<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma postagem ainda.</div></div>';
+}
+function updateMyScore(){
+  if(!currentUser||currentUser.role!=='operator')return;
+  const u=DB.users[currentUser.name];const pts=u?u.points:0;
+  const r=getRanking();const pos=r.findIndex(x=>x.name===currentUser.name)+1;
+  const lv=getLevel(pts);
+
+  document.getElementById('my-score-big').textContent=pts;
+  document.getElementById('my-score-page').textContent=pts;
+  document.getElementById('my-rank-pos').textContent=pos?'#'+pos:'#–';
+  document.getElementById('my-rank-page').textContent=pos?'#'+pos:'#–';
+
+  // Level dot
+  const dotHTML=levelDotHTML(pts,20);
+  document.getElementById('my-level-dot-big').innerHTML=dotHTML;
+  document.getElementById('my-level-dot-page').innerHTML=dotHTML;
+
+  // Level label
+  const badgeHTML=levelBadgeHTML(pts);
+  document.getElementById('my-level-label').innerHTML=badgeHTML;
+  document.getElementById('my-level-label-page').innerHTML=badgeHTML;
+
+  // Progress bar — to next level
+  const nextThreshold=LEVEL_THRESHOLDS.find(t=>pts<t)||9000;
+  const prevThreshold=LEVEL_THRESHOLDS.filter(t=>t<=pts).pop()||0;
+  const pct=prevThreshold===nextThreshold?100:Math.min(((pts-prevThreshold)/(nextThreshold-prevThreshold))*100,100);
+  document.getElementById('my-progress-bar').style.width=pct+'%';
+  const hint=document.getElementById('next-level-hint');
+  if(pts>=9000) hint.textContent='🏆 Nível máximo atingido! Você é um Mestre BPF!';
+  else hint.textContent=`Faltam ${nextThreshold-pts} pts para o próximo nível`;
+
+  // Level checklist
+  ['chk-lvl1','chk-lvl2','chk-lvl3','chk-lvl4'].forEach((id,i)=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.textContent=pts>=LEVEL_THRESHOLDS[i]?'✅':'🔒';
+  });
+
+  // Level banner
+  updateLevelBanner(pts);
+
+  // History
+  const histEl=document.getElementById('pts-history-list');
+  const myPosts=DB.posts.filter(p=>p.author===currentUser.name);
+  const myReps=DB.repudios.filter(r=>r.reportedBy===currentUser.name);
+  const items=[
+    ...myPosts.map(p=>{const acts=p.activities||[p.activity].filter(Boolean);return{icon:acts.map(a=>a.icon).join(''),name:acts.map(a=>a.name).join(', '),pts:'+'+p.points,ts:p.ts};}),
+    ...myReps.map(r=>({icon:'📝',name:'Nota de Repúdio enviada',pts:'+'+REPUDIO_PTS,ts:r.ts})),
+  ].sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  histEl.innerHTML=items.length?items.map(i=>`<div class="pts-row"><div class="pts-row-left"><span class="pts-row-icon">${i.icon}</span><div><div class="pts-row-name">${i.name}</div><div class="pts-row-date">${new Date(i.ts).toLocaleString('pt-BR')}</div></div></div><div class="pts-row-pts">${i.pts}</div></div>`).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">Nenhuma pontuação.</div></div>';
+}
+
+function updateAllPosts(){
+  const el=document.getElementById('all-posts-feed');const cd=currentUser&&currentUser.role==='manager';
+  el.innerHTML=DB.posts.length?DB.posts.map(p=>buildPostHTML(p,cd)).join(''):'<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma atividade.</div></div>';
+}
+function buildRepHTML(r,del=false){
+  const count=DB.users[r.targetName]?DB.users[r.targetName].repudiosReceived.length:1;
+  const sevC={Leve:'var(--accent)',Moderada:'var(--warn)',Grave:'var(--danger)'};
+  const date=new Date(r.ts).toLocaleDateString('pt-BR');
+  return`<div class="rep-card" id="rep-${r.id}">
+    <div class="rep-card-header"><div><div class="rep-card-target">${r.targetName}</div><div class="rep-card-role">${r.targetRole} · ${r.machine}</div></div>
+    <div style="text-align:right"><div class="rep-card-date">${date}</div><span class="rep-count-badge">⚠️ ${count} nota(s)</span></div></div>
+    <div class="rep-card-desc">${r.desc}</div>
+    <div class="rep-card-footer"><span>Por: <strong>${r.reportedByName}</strong></span><span style="color:${sevC[r.severity]||'var(--muted)'}">Gravidade: <strong>${r.severity}</strong></span>${del?`<button class="btn-del" onclick="deleteRep(${r.id})">🗑️</button>`:''}</div></div>`;
+}
+function updateAlerts(){
+  const ae=document.getElementById('alerts-container');const rl=document.getElementById('all-rep-list');
+  const flagged=Object.values(DB.users).filter(u=>u.repudiosReceived&&u.repudiosReceived.length>=3);
+  ae.innerHTML=flagged.length?flagged.map(u=>`<div class="alert-card"><div class="alert-icon">🚨</div><div class="alert-content"><div class="alert-title">Reincidência: ${u.name}</div><div class="alert-body">${u.name} acumula <strong>${u.repudiosReceived.length} notas de repúdio</strong>. Cargo: ${u.role}. Ação disciplinar recomendada.</div></div></div>`).join(''):'<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">Nenhum alerta crítico.</div></div>';
+  const cd=currentUser&&currentUser.role==='manager';
+  rl.innerHTML=DB.repudios.length?DB.repudios.map(r=>buildRepHTML(r,cd)).join(''):'<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Nenhuma nota.</div></div>';
+}
+function updateAlertBadge(){
+  const f=Object.values(DB.users).filter(u=>u.repudiosReceived&&u.repudiosReceived.length>=3);
+  const b=document.getElementById('alert-count-badge');
+  if(f.length){b.style.display='inline-block';b.textContent=f.length;}else b.style.display='none';
+}
+function updateMyRep(){
+  if(!currentUser||currentUser.role!=='operator')return;
+  const el=document.getElementById('my-rep-list');const mine=DB.repudios.filter(r=>r.reportedBy===currentUser.name);
+  el.innerHTML=mine.length?mine.map(r=>buildRepHTML(r)).join(''):'<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">Nenhuma nota aberta por você.</div></div>';
+}
+function updateUsers(){
+  const tbody=document.getElementById('users-tbody');const users=Object.values(DB.users).filter(u=>u.role==='operator');
+  if(!users.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">Nenhum operador.</td></tr>';return;}
+  tbody.innerHTML=users.sort((a,b)=>b.points-a.points).map(u=>{
+    const fl=u.repudiosReceived&&u.repudiosReceived.length>=3;
+    const avh=u.avatar?`<img src="${u.avatar}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1.5px solid var(--accent)">`:`<div style="width:30px;height:30px;border-radius:50%;background:var(--accentlt);display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--border);color:var(--accent);font-weight:700">${u.name[0]||'?'}</div>`;
+    return`<tr><td>${avh}</td><td>${u.name}</td><td>${levelBadgeHTML(u.points)||'<span style="color:var(--muted);font-size:12px">–</span>'}</td><td>${u.posts?u.posts.length:0}</td><td style="color:var(--accent);font-weight:700">${u.points}</td><td style="color:${fl?'var(--danger)':'var(--muted)'}">${u.repudiosReceived?u.repudiosReceived.length:0}</td><td><span class="${fl?'status-flagged':'status-active'}">${fl?'⚠️ Sinalizado':'✅ Regular'}</span></td><td>${currentUser.role==='manager'?`<button class="btn-del" onclick="deleteUser('${u.name}')">🗑️</button>`:'–'}</td></tr>`;
+  }).join('');
+}
+function updateReports(){
+  const ops=Object.values(DB.users).filter(u=>u.role==='operator');
+  const tp=Object.values(DB.users).reduce((s,u)=>s+u.points,0);
+  document.getElementById('rep-stat-operators').textContent=ops.length;
+  document.getElementById('rep-stat-posts').textContent=DB.posts.length;
+  document.getElementById('rep-stat-pts').textContent=tp;
+  document.getElementById('rep-stat-reps').textContent=DB.repudios.length;
+  const tbody=document.getElementById('full-ranking-tbody');const r=getRanking();
+  if(!r.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhum dado.</td></tr>';return;}
+  const medals=['🥇','🥈','🥉'];
+  tbody.innerHTML=r.map((u,i)=>`<tr><td>${medals[i]||'#'+(i+1)}</td><td>${u.name}</td><td>${levelBadgeHTML(u.points)||'–'}</td><td style="color:var(--accent);font-weight:700">${u.points}</td><td>${u.posts?u.posts.length:0}</td></tr>`).join('');
+}
+/* DELETE */
+function deletePost(id){
+  if(!confirm('Remover postagem?'))return;
+  const p=DB.posts.find(p=>p.id===id);
+  if(p&&DB.users[p.author]){DB.users[p.author].points-=p.points;DB.users[p.author].posts=DB.users[p.author].posts.filter(x=>x!==id);}
+  DB.posts=DB.posts.filter(p=>p.id!==id);saveDB();refreshAll();showToast('🗑️','Postagem removida','','warning');
+}
+function deleteRep(id){
+  if(!confirm('Remover nota?'))return;
+  const r=DB.repudios.find(r=>r.id===id);
+  if(r){
+    if(DB.users[r.reportedBy]){DB.users[r.reportedBy].points-=REPUDIO_PTS;DB.users[r.reportedBy].repudiosSent=DB.users[r.reportedBy].repudiosSent.filter(x=>x!==id);}
+    if(DB.users[r.targetName]) DB.users[r.targetName].repudiosReceived=DB.users[r.targetName].repudiosReceived.filter(x=>x!==id);
+  }
+  DB.repudios=DB.repudios.filter(rep=>rep.id!==id);saveDB();refreshAll();showToast('🗑️','Nota removida','','warning');
+}
+function deleteUser(name){
+  if(!confirm(`Remover ${name}?`))return;
+  DB.posts=DB.posts.filter(p=>p.author!==name);DB.repudios=DB.repudios.filter(r=>r.reportedBy!==name&&r.targetName!==name);delete DB.users[name];
+  saveDB();refreshAll();showToast('🗑️','Usuário removido',name,'warning');
+}
+function clearAllData(){
+  if(!confirm('Apagar TODOS os dados?'))return;if(!confirm('Confirmação final — limpar tudo?'))return;
+  DB={posts:[],repudios:[],users:{},nextId:1};saveDB();refreshAll();showToast('🗑️','Dados limpos','','danger');
+}
+/* UTILS */
+function showImg(src){const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:pointer';o.innerHTML=`<img src="${src}" style="max-width:90vw;max-height:90vh;border-radius:12px">`;o.onclick=()=>document.body.removeChild(o);document.body.appendChild(o);}
+function showToast(icon,title,msg,type='success'){
+  const c=document.getElementById('toastContainer');const t=document.createElement('div');
+  t.className=`toast ${type}`;t.innerHTML=`<div class="toast-icon">${icon}</div><div class="toast-body"><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  c.appendChild(t);setTimeout(()=>{try{c.removeChild(t);}catch(e){}},5000);
+}
+function celebrate(){
+  const o=document.getElementById('celebrateOverlay');o.style.display='block';o.innerHTML='';
+  const colors=['#00b854','#00934a','#3b82f6','#f59e0b','#f43f5e','#a855f7'];
+  for(let i=0;i<70;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.cssText=`left:${Math.random()*100}%;top:${-10-Math.random()*50}px;background:${colors[~~(Math.random()*colors.length)]};width:${6+Math.random()*10}px;height:${6+Math.random()*10}px;animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*.5}s;border-radius:${Math.random()>.5?'50%':'2px'};`;o.appendChild(p);}
+  setTimeout(()=>o.style.display='none',3500);
+}
+/* INIT */
+document.getElementById('rep-date-display').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Enter'||!document.getElementById('modal').classList.contains('open'))return;
+  if(document.getElementById('modal-operator-view').style.display!=='none')loginOperator();
+  else if(document.getElementById('modal-analyst-view').style.display!=='none')loginAnalyst();
+  else if(document.getElementById('modal-manager-view').style.display!=='none')loginManager();
+});
+</script>
+</body>
+</html>
